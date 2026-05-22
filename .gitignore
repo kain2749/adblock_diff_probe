@@ -1,0 +1,22 @@
+# Extensions / downloads
+extensions/
+*.xpi
+*.zip
+*.crx
+
+# Browser junk
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+*.log
+storage/
+cache2/
+startupCache/
+sessionstore-backups/
+browser-extension-data/
+
+# OS/editor
+.DS_Store
+*.swp
+*.swo
