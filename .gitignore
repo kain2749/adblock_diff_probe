@@ -1,20 +1,37 @@
-# Extensions / downloads
-extensions/
-*.xpi
-*.zip
-*.crx
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# Browser junk
+# Private disposable runtime junk
+runs/
+runs_private/
+.tmp/
+profiles/
+**/profiles/
+**/Default/
+**/Service Worker/
+**/CacheStorage/
+cache2/
+startupCache/
+storage/
+sessionstore-backups/
+browser-extension-data/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
 *.db
 *.log
-storage/
-cache2/
-startupCache/
-sessionstore-backups/
-browser-extension-data/
+
+# Extension/download junk
+extensions/
+*.xpi
+*.zip
+*.crx
 
 # OS/editor
 .DS_Store

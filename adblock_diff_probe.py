@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """
-adblock_diff_probe_firefox.py
+adblock_diff_probe.py
 
-MVP web behavior diff harness using Selenium + Firefox.
+Firefox/Selenium webpage behavior diff harness.
 Hardcoded first target: YouTube Rickroll.
 
 Runs the same URL in two Firefox profiles:
@@ -12,6 +12,7 @@ Runs the same URL in two Firefox profiles:
 Outputs:
   runs/<timestamp>/<profile>/run_<n>.json
   runs/<timestamp>/<profile>/run_<n>.png
+  runs/<timestamp>/summary.json
   reports/<timestamp>_rickroll_youtube.md
 
 This measures behavior. It does not bypass anything.
@@ -22,13 +23,16 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import platform
 import random
 import re
 import shutil
 import statistics
+import subprocess
+import sys
 import time
 from collections import defaultdict
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -57,6 +61,7 @@ ANTI_ADBLOCK_PATTERNS = [
     r"ads help",
     r"blocked by client",
 ]
+
 
 @dataclass
 class ProbeResult:
@@ -104,10 +109,44 @@ def median_or_none(values: list[float | int | None]) -> float | None:
     return float(statistics.median(good))
 
 
+def mean_or_none(values: list[float | int | None]) -> float | None:
+    good = [v for v in values if v is not None]
+    if not good:
+        return None
+    return float(statistics.mean(good))
+
+
+def min_or_none(values: list[float | int | None]) -> float | None:
+    good = [v for v in values if v is not None]
+    if not good:
+        return None
+    return float(min(good))
+
+
+def max_or_none(values: list[float | int | None]) -> float | None:
+    good = [v for v in values if v is not None]
+    if not good:
+        return None
+    return float(max(good))
+
+
+def sample_stdev_or_none(values: list[float | int | None]) -> float | None:
+    good = [float(v) for v in values if v is not None]
+    if len(good) < 2:
+        return None
+    return float(statistics.stdev(good))
+
+
 def fmt_ms(v: float | int | None) -> str:
     if v is None:
         return "n/a"
     return f"{v:.0f} ms"
+
+
+def fmt_s(v: float | int | None) -> str:
+    if v is None:
+        return "n/a"
+    return f"{v:.2f} s"
 
 
 def fmt_num(v: float | int | None) -> str:
@@ -116,6 +155,28 @@ def fmt_num(v: float | int | None) -> str:
     if isinstance(v, float):
         return f"{v:.2f}"
     return str(v)
+
+
+def run_cmd(cmd: list[str]) -> str | None:
+    try:
+        completed = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=10)
+        output = (completed.stdout or completed.stderr).strip()
+        return output if output else None
+    except Exception:
+        return None
+
+
+def environment_info() -> dict[str, Any]:
+    return {
+        "python": sys.version.split()[0],
+        "platform": platform.platform(),
+        "system": platform.system(),
+        "machine": platform.machine(),
+        "firefox_version": run_cmd(["firefox", "--version"]),
+        "selenium_version": webdriver.__version__,
+        "target_url": TARGET_URL,
+        "viewport": f"{VIEWPORT_WIDTH}x{VIEWPORT_HEIGHT}",
+    }
 
 
 def get_perf_metrics(driver: webdriver.Firefox) -> dict[str, float | None]:
@@ -274,7 +335,6 @@ def run_probe(
             try:
                 addon_id = driver.install_addon(str(ubo_xpi), temporary=True)
                 notes.append(f"installed addon: {addon_id}")
-                # Give uBO a moment to initialize. Without this, first navigation can race the extension startup.
                 time.sleep(2)
             except Exception as exc:
                 notes.append(f"uBO install failed: {type(exc).__name__}: {exc}")
@@ -348,19 +408,44 @@ def run_probe(
             pass
 
 
+def values(results: list[ProbeResult], field: str) -> list[float | int | None]:
+    return [getattr(r, field) for r in results]
+
+
+def summarize_metric(results: list[ProbeResult], field: str) -> dict[str, Any]:
+    vals = values(results, field)
+    return {
+        "values": vals,
+        "median": median_or_none(vals),
+        "mean": mean_or_none(vals),
+        "min": min_or_none(vals),
+        "max": max_or_none(vals),
+        "stdev": sample_stdev_or_none(vals),
+    }
+
+
 def summarize_profile(results: list[ProbeResult]) -> dict[str, Any]:
+    metrics = [
+        "domcontentloaded_ms",
+        "load_ms",
+        "first_contentful_paint_ms",
+        "largest_contentful_paint_ms",
+        "time_to_video_element_ms",
+        "time_to_playing_ms",
+        "video_current_time_after_wait_s",
+        "total_run_ms",
+    ]
     return {
         "runs": len(results),
-        "median_domcontentloaded_ms": median_or_none([r.domcontentloaded_ms for r in results]),
-        "median_load_ms": median_or_none([r.load_ms for r in results]),
-        "median_fcp_ms": median_or_none([r.first_contentful_paint_ms for r in results]),
-        "median_lcp_ms": median_or_none([r.largest_contentful_paint_ms for r in results]),
-        "median_time_to_video_element_ms": median_or_none([r.time_to_video_element_ms for r in results]),
-        "median_time_to_playing_ms": median_or_none([r.time_to_playing_ms for r in results]),
-        "median_video_current_time_after_wait_s": median_or_none([r.video_current_time_after_wait_s for r in results]),
+        "metrics": {m: summarize_metric(results, m) for m in metrics},
         "anti_adblock_text_detected_any": any(r.anti_adblock_text_detected for r in results),
         "detected_phrases": sorted(set().union(*(set(r.detected_phrases) for r in results))) if results else [],
+        "notes": [note for r in results for note in r.notes],
     }
+
+
+def metric_median(summary: dict[str, Any], metric: str) -> float | None:
+    return summary.get("metrics", {}).get(metric, {}).get("median")
 
 
 def delta(new: float | None, old: float | None) -> float | None:
@@ -369,11 +454,37 @@ def delta(new: float | None, old: float | None) -> float | None:
     return new - old
 
 
-def write_report(run_dir: Path, report_path: Path, results_by_profile: dict[str, list[ProbeResult]]) -> None:
-    no_blocker = summarize_profile(results_by_profile.get("no_blocker", []))
-    ubo = summarize_profile(results_by_profile.get("ubo", []))
+def pct_change(new: float | None, old: float | None) -> float | None:
+    if new is None or old in (None, 0):
+        return None
+    return ((new - old) / old) * 100.0
 
-    playing_delta = delta(ubo.get("median_time_to_playing_ms"), no_blocker.get("median_time_to_playing_ms"))
+
+def fmt_delta_pct(new: float | None, old: float | None) -> str:
+    pct = pct_change(new, old)
+    if pct is None:
+        return "n/a"
+    return f"{pct:+.1f}%"
+
+
+def write_report(
+    run_dir: Path,
+    report_path: Path,
+    summary_path: Path,
+    results_by_profile: dict[str, list[ProbeResult]],
+    env: dict[str, Any],
+    args: argparse.Namespace,
+) -> None:
+    summaries = {profile: summarize_profile(results) for profile, results in results_by_profile.items()}
+    no_blocker = summaries.get("no_blocker", {"metrics": {}})
+    ubo = summaries.get("ubo", {"metrics": {}})
+
+    playing_no = metric_median(no_blocker, "time_to_playing_ms")
+    playing_ubo = metric_median(ubo, "time_to_playing_ms")
+    playing_delta = delta(playing_ubo, playing_no)
+
+    dom_delta = delta(metric_median(ubo, "domcontentloaded_ms"), metric_median(no_blocker, "domcontentloaded_ms"))
+    video_element_delta = delta(metric_median(ubo, "time_to_video_element_ms"), metric_median(no_blocker, "time_to_video_element_ms"))
 
     possible_anti = False
     reasons: list[str] = []
@@ -384,72 +495,145 @@ def write_report(run_dir: Path, report_path: Path, results_by_profile: dict[str,
         possible_anti = True
         reasons.append("visible anti-adblock text detected")
 
+    summary_json = {
+        "target": TARGET_URL,
+        "target_name": TARGET_NAME,
+        "run_dir": str(run_dir),
+        "report_path": str(report_path),
+        "environment": env,
+        "settings": {
+            "runs_per_profile": args.runs,
+            "headless": args.headless,
+            "navigation_timeout_s": args.navigation_timeout_s,
+            "video_timeout_s": args.video_timeout_s,
+            "settle_seconds": args.settle_seconds,
+            "ubo_xpi_supplied": args.ubo_xpi is not None,
+        },
+        "profiles": summaries,
+        "conclusion": {
+            "possible_anti_adblock_behavior": possible_anti,
+            "reasons": reasons,
+            "median_time_to_playing_delta_ms": playing_delta,
+            "median_domcontentloaded_delta_ms": dom_delta,
+            "median_time_to_video_element_delta_ms": video_element_delta,
+        },
+    }
+    summary_path.write_text(json.dumps(summary_json, indent=2, sort_keys=True), encoding="utf-8")
+
     lines: list[str] = []
     lines.append(f"# Adblock Diff Probe: {TARGET_NAME}")
     lines.append("")
     lines.append(f"Target: `{TARGET_URL}`")
     lines.append(f"Run directory: `{run_dir}`")
+    lines.append(f"Summary JSON: `{summary_path}`")
     lines.append("")
-    lines.append("## Summary")
+    lines.append("## Verdict")
     lines.append("")
     lines.append(f"Possible anti-adblock behavior: **{'YES' if possible_anti else 'not proven from this run'}**")
+    lines.append("")
     if reasons:
-        lines.append("")
         for reason in reasons:
             lines.append(f"- {reason}")
+    else:
+        lines.append("- No timing/text signal crossed the configured threshold.")
     lines.append("")
-    lines.append("## Median Metrics")
+    lines.append("Interpretation: compare playback timing separately from page-load timing. A large `time_to_playing` delta with a small `time_to_video_element` delta means the page produced a video element quickly, but playback was delayed.")
     lines.append("")
-    lines.append("| Metric | No blocker | uBO | Delta |")
-    lines.append("|---|---:|---:|---:|")
+
+    lines.append("## Median Comparison")
+    lines.append("")
+    lines.append("| Metric | No blocker median | uBO median | Delta | Percent change |")
+    lines.append("|---|---:|---:|---:|---:|")
     metric_rows = [
-        ("DOMContentLoaded", "median_domcontentloaded_ms", "ms"),
-        ("Load event", "median_load_ms", "ms"),
-        ("First contentful paint", "median_fcp_ms", "ms"),
-        ("Largest contentful paint", "median_lcp_ms", "ms"),
-        ("Time to video element", "median_time_to_video_element_ms", "ms"),
-        ("Time to playing", "median_time_to_playing_ms", "ms"),
-        ("Video currentTime after wait", "median_video_current_time_after_wait_s", "s"),
+        ("DOMContentLoaded", "domcontentloaded_ms", "ms"),
+        ("Load event", "load_ms", "ms"),
+        ("First contentful paint", "first_contentful_paint_ms", "ms"),
+        ("Largest contentful paint", "largest_contentful_paint_ms", "ms"),
+        ("Time to video element", "time_to_video_element_ms", "ms"),
+        ("Time to playing", "time_to_playing_ms", "ms"),
+        ("Video currentTime after wait", "video_current_time_after_wait_s", "s"),
+        ("Total run time", "total_run_ms", "ms"),
     ]
     for label, key, unit in metric_rows:
-        a = no_blocker.get(key)
-        b = ubo.get(key)
+        a = metric_median(no_blocker, key)
+        b = metric_median(ubo, key)
         d = delta(b, a)
         if unit == "ms":
-            lines.append(f"| {label} | {fmt_ms(a)} | {fmt_ms(b)} | {fmt_ms(d)} |")
+            lines.append(f"| {label} | {fmt_ms(a)} | {fmt_ms(b)} | {fmt_ms(d)} | {fmt_delta_pct(b, a)} |")
+        elif unit == "s":
+            lines.append(f"| {label} | {fmt_s(a)} | {fmt_s(b)} | {fmt_s(d)} | {fmt_delta_pct(b, a)} |")
         else:
-            lines.append(f"| {label} | {fmt_num(a)} | {fmt_num(b)} | {fmt_num(d)} |")
+            lines.append(f"| {label} | {fmt_num(a)} | {fmt_num(b)} | {fmt_num(d)} | {fmt_delta_pct(b, a)} |")
 
     lines.append("")
+    lines.append("## Per-Run Timing")
+    lines.append("")
+    for profile in sorted(results_by_profile):
+        results = sorted(results_by_profile[profile], key=lambda x: x.run_index)
+        lines.append(f"### {profile}")
+        lines.append("")
+        lines.append("| Run | DOMContentLoaded | Load | Video element | Playing | Video currentTime after wait | Anti-adblock text | Notes |")
+        lines.append("|---:|---:|---:|---:|---:|---:|---|---|")
+        for r in results:
+            notes = "; ".join(r.notes).replace("|", "\\|") if r.notes else ""
+            lines.append(
+                f"| {r.run_index} | {fmt_ms(r.domcontentloaded_ms)} | {fmt_ms(r.load_ms)} | "
+                f"{fmt_ms(r.time_to_video_element_ms)} | {fmt_ms(r.time_to_playing_ms)} | "
+                f"{fmt_s(r.video_current_time_after_wait_s)} | {r.anti_adblock_text_detected} | {notes} |"
+            )
+        lines.append("")
+
+    lines.append("## Per-Profile Timing Stats")
+    lines.append("")
+    for profile in sorted(summaries):
+        lines.append(f"### {profile}")
+        lines.append("")
+        lines.append("| Metric | Values | Min | Median | Mean | Max | Stdev |")
+        lines.append("|---|---|---:|---:|---:|---:|---:|")
+        for label, key, unit in metric_rows:
+            stat = summaries[profile]["metrics"][key]
+            raw_vals = stat["values"]
+            if unit == "ms":
+                vals = ", ".join(fmt_ms(v) for v in raw_vals)
+                lines.append(f"| {label} | `{vals}` | {fmt_ms(stat['min'])} | {fmt_ms(stat['median'])} | {fmt_ms(stat['mean'])} | {fmt_ms(stat['max'])} | {fmt_ms(stat['stdev'])} |")
+            elif unit == "s":
+                vals = ", ".join(fmt_s(v) for v in raw_vals)
+                lines.append(f"| {label} | `{vals}` | {fmt_s(stat['min'])} | {fmt_s(stat['median'])} | {fmt_s(stat['mean'])} | {fmt_s(stat['max'])} | {fmt_s(stat['stdev'])} |")
+            else:
+                vals = ", ".join(fmt_num(v) for v in raw_vals)
+                lines.append(f"| {label} | `{vals}` | {fmt_num(stat['min'])} | {fmt_num(stat['median'])} | {fmt_num(stat['mean'])} | {fmt_num(stat['max'])} | {fmt_num(stat['stdev'])} |")
+        lines.append("")
+
     lines.append("## Detected Anti-Adblock Phrases")
     lines.append("")
-    phrases = ubo.get("detected_phrases", [])
+    phrases = summaries.get("ubo", {}).get("detected_phrases", [])
     if phrases:
         for p in phrases:
             lines.append(f"- `{p}`")
     else:
         lines.append("None detected in visible body text.")
+    lines.append("")
 
+    lines.append("## Environment")
     lines.append("")
-    lines.append("## Per-Run Details")
+    lines.append("| Field | Value |")
+    lines.append("|---|---|")
+    for k, v in env.items():
+        lines.append(f"| `{k}` | `{v}` |")
+    lines.append(f"| `headless` | `{args.headless}` |")
+    lines.append(f"| `runs_per_profile` | `{args.runs}` |")
+    lines.append(f"| `navigation_timeout_s` | `{args.navigation_timeout_s}` |")
+    lines.append(f"| `video_timeout_s` | `{args.video_timeout_s}` |")
+    lines.append(f"| `settle_seconds` | `{args.settle_seconds}` |")
+    lines.append(f"| `ubo_xpi_supplied` | `{args.ubo_xpi is not None}` |")
     lines.append("")
-    for profile, results in results_by_profile.items():
-        lines.append(f"### {profile}")
-        lines.append("")
-        lines.append("| Run | Time to playing | Video currentTime after wait | Anti-adblock text | Notes |")
-        lines.append("|---:|---:|---:|---|---|")
-        for r in sorted(results, key=lambda x: x.run_index):
-            notes = "; ".join(r.notes).replace("|", "\\|") if r.notes else ""
-            lines.append(
-                f"| {r.run_index} | {fmt_ms(r.time_to_playing_ms)} | "
-                f"{fmt_num(r.video_current_time_after_wait_s)} | "
-                f"{r.anti_adblock_text_detected} | {notes} |"
-            )
-        lines.append("")
 
     lines.append("## Raw Outputs")
     lines.append("")
-    lines.append(f"JSON and screenshots live under `{run_dir}`.")
+    lines.append(f"Raw JSON and screenshots live under `{run_dir}`.")
+    lines.append(f"Machine-readable summary: `{summary_path}`.")
+    lines.append("")
+    lines.append("Careful wording for publication: this run shows a repeatable playback-start delay under this exact Firefox/Selenium/uBO setup. It does not prove every browser, account state, region, network, or uBO version gets the same delay.")
 
     report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -476,6 +660,7 @@ def main() -> None:
     run_dir = mkdir(args.out / "runs" / ts)
     report_dir = mkdir(args.out / "reports")
     report_path = report_dir / f"{ts}_{TARGET_NAME}.md"
+    summary_path = run_dir / "summary.json"
 
     plan: list[tuple[str, Path | None, int]] = []
     for i in range(1, args.runs + 1):
@@ -485,6 +670,7 @@ def main() -> None:
 
     random.shuffle(plan)
 
+    env = environment_info()
     results_by_profile: dict[str, list[ProbeResult]] = defaultdict(list)
 
     for profile, xpi, run_index in plan:
@@ -502,11 +688,19 @@ def main() -> None:
         results_by_profile[profile].append(result)
         print(
             f"    playing={fmt_ms(result.time_to_playing_ms)} "
-            f"video_t={fmt_num(result.video_current_time_after_wait_s)}s "
+            f"video_element={fmt_ms(result.time_to_video_element_ms)} "
+            f"video_t={fmt_s(result.video_current_time_after_wait_s)} "
             f"anti_text={result.anti_adblock_text_detected}"
         )
 
-    write_report(run_dir=run_dir, report_path=report_path, results_by_profile=results_by_profile)
+    write_report(
+        run_dir=run_dir,
+        report_path=report_path,
+        summary_path=summary_path,
+        results_by_profile=results_by_profile,
+        env=env,
+        args=args,
+    )
 
     if not args.keep_profiles:
         profiles_dir = run_dir / "profiles"
@@ -514,6 +708,7 @@ def main() -> None:
             shutil.rmtree(profiles_dir)
 
     print(f"\n[+] Report: {report_path}")
+    print(f"[+] Summary JSON: {summary_path}")
     print(f"[+] Raw run data: {run_dir}")
 
 
