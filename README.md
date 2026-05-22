@@ -1,3 +1,5 @@
+# Paused for now, I quit getting results when testing. Maybe they did something with my IP? Anyway, I'm not getting slowed down, so screw it. Maybe another day/week/month/year.
+
 # Adblock Diff Probe
 
 Small Firefox/Selenium harness for measuring how a webpage behaves with and without an ad blocker.
