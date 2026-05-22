@@ -1,0 +1,2 @@
+2026/05/22-01:22:19.992 5b9b7 Creating DB /home/kain/repos/adblock_diff_probe/runs/20260522_052205_utc/profiles/no_blocker_2/Default/IndexedDB/https_www.youtube.com_0.indexeddb.leveldb since it was missing.
+2026/05/22-01:22:20.004 5b9b7 Reusing MANIFEST /home/kain/repos/adblock_diff_probe/runs/20260522_052205_utc/profiles/no_blocker_2/Default/IndexedDB/https_www.youtube.com_0.indexeddb.leveldb/MANIFEST-000001
