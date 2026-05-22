@@ -156,3 +156,6 @@ Delta: 11291 ms
 ```
 
 That does not automatically prove intent. It does prove that under this test setup, playback begins much later with uBO active.
+
+run 1 was rickroll, showed adblocker slowed it down
+run 2 was youtube's channel, adblocker did not slow it down. Testing now with right wing video, then going to do a left wing video.
