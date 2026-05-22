@@ -1,0 +1,26 @@
+{
+  "anti_adblock_text_detected": false,
+  "detected_phrases": [],
+  "domcontentloaded_ms": 1863,
+  "first_contentful_paint_ms": 1285,
+  "largest_contentful_paint_ms": null,
+  "load_ms": 1886,
+  "notes": [
+    "installed addon: uBlock0@raymondhill.net"
+  ],
+  "profile": "ubo",
+  "run_index": 2,
+  "screenshot_path": "runs/20260522_060003_utc/ubo/run_2.png",
+  "started_at_utc": "2026-05-22T06:01:47.399338+00:00",
+  "time_to_playing_ms": 3683,
+  "time_to_video_element_ms": 12,
+  "total_run_ms": 23571,
+  "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64; rv:151.0) Gecko/20100101 Firefox/151.0",
+  "video_current_time_after_wait_s": 11.102452,
+  "video_error_after_wait": null,
+  "video_paused_after_wait": false,
+  "video_ready_state_after_wait": 4,
+  "visible_text_hash": "2d7ba2d01e02e882bc80c5790c9c2d81a41da1120aff006c1d49c46bee2807be",
+  "visible_text_length": 2934
+}

@@ -1,0 +1,366 @@
+{
+  "conclusion": {
+    "median_domcontentloaded_delta_ms": 457.0,
+    "median_time_to_playing_delta_ms": 7508.0,
+    "median_time_to_video_element_delta_ms": -0.5,
+    "possible_anti_adblock_behavior": true,
+    "reasons": [
+      "uBO median time-to-playing was 7508 ms slower"
+    ]
+  },
+  "environment": {
+    "firefox_version": "Mozilla Firefox 151.0",
+    "machine": "x86_64",
+    "platform": "Linux-6.17.9-76061709-generic-x86_64-with-glibc2.35",
+    "python": "3.10.12",
+    "selenium_version": "4.44.0",
+    "system": "Linux",
+    "target_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "viewport": "1280x720"
+  },
+  "profiles": {
+    "no_blocker": {
+      "anti_adblock_text_detected_any": false,
+      "detected_phrases": [],
+      "metrics": {
+        "domcontentloaded_ms": {
+          "max": 1521.0,
+          "mean": 1202.6,
+          "median": 1214.5,
+          "min": 885.0,
+          "stdev": 228.06539023320093,
+          "values": [
+            995,
+            885,
+            1275,
+            1231,
+            1521,
+            1519,
+            1393,
+            1035,
+            1198,
+            974
+          ]
+        },
+        "first_contentful_paint_ms": {
+          "max": 1425.0,
+          "mean": 850.0,
+          "median": 738.0,
+          "min": 460.0,
+          "stdev": 354.9895147121328,
+          "values": [
+            627,
+            496,
+            819,
+            1143,
+            1425,
+            912,
+            1377,
+            460,
+            657,
+            584
+          ]
+        },
+        "largest_contentful_paint_ms": {
+          "max": null,
+          "mean": null,
+          "median": null,
+          "min": null,
+          "stdev": null,
+          "values": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        "load_ms": {
+          "max": 1544.0,
+          "mean": 1268.0,
+          "median": 1238.0,
+          "min": 995.0,
+          "stdev": 208.6789133786375,
+          "values": [
+            1099,
+            995,
+            1371,
+            1254,
+            1544,
+            1542,
+            1497,
+            1081,
+            1222,
+            1075
+          ]
+        },
+        "time_to_playing_ms": {
+          "max": 609.0,
+          "mean": 166.8,
+          "median": 156.5,
+          "min": 31.0,
+          "stdev": 164.75490213580227,
+          "values": [
+            166,
+            60,
+            128,
+            609,
+            167,
+            31,
+            155,
+            36,
+            158,
+            158
+          ]
+        },
+        "time_to_video_element_ms": {
+          "max": 53.0,
+          "mean": 21.7,
+          "median": 18.0,
+          "min": 11.0,
+          "stdev": 13.241768931847604,
+          "values": [
+            36,
+            13,
+            20,
+            11,
+            13,
+            12,
+            19,
+            53,
+            23,
+            17
+          ]
+        },
+        "total_run_ms": {
+          "max": 17472.0,
+          "mean": 17093.7,
+          "median": 17072.5,
+          "min": 16704.0,
+          "stdev": 288.4899574604904,
+          "values": [
+            16884,
+            16704,
+            17227,
+            17472,
+            17311,
+            17348,
+            17418,
+            16864,
+            16918,
+            16791
+          ]
+        },
+        "video_current_time_after_wait_s": {
+          "max": 11.636916,
+          "mean": 11.2505942,
+          "median": 11.177971,
+          "min": 11.094521,
+          "stdev": 0.20662121168446265,
+          "values": [
+            11.177945,
+            11.094559,
+            11.13639,
+            11.636696,
+            11.180367,
+            11.636916,
+            11.17661,
+            11.094521,
+            11.193941,
+            11.177997
+          ]
+        }
+      },
+      "notes": [],
+      "runs": 10
+    },
+    "ubo": {
+      "anti_adblock_text_detected_any": false,
+      "detected_phrases": [],
+      "metrics": {
+        "domcontentloaded_ms": {
+          "max": 1978.0,
+          "mean": 1629.6,
+          "median": 1671.5,
+          "min": 1313.0,
+          "stdev": 230.94886398893107,
+          "values": [
+            1662,
+            1681,
+            1313,
+            1863,
+            1783,
+            1474,
+            1322,
+            1441,
+            1978,
+            1779
+          ]
+        },
+        "first_contentful_paint_ms": {
+          "max": 1470.0,
+          "mean": 1062.9,
+          "median": 1100.0,
+          "min": 695.0,
+          "stdev": 245.95503202369693,
+          "values": [
+            1156,
+            1042,
+            695,
+            1285,
+            1177,
+            1470,
+            709,
+            878,
+            1044,
+            1173
+          ]
+        },
+        "largest_contentful_paint_ms": {
+          "max": null,
+          "mean": null,
+          "median": null,
+          "min": null,
+          "stdev": null,
+          "values": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        "load_ms": {
+          "max": 2004.0,
+          "mean": 1666.3,
+          "median": 1750.5,
+          "min": 1334.0,
+          "stdev": 233.69593254673666,
+          "values": [
+            1797,
+            1704,
+            1334,
+            1886,
+            1803,
+            1511,
+            1345,
+            1477,
+            2004,
+            1802
+          ]
+        },
+        "time_to_playing_ms": {
+          "max": 11971.0,
+          "mean": 7315.4,
+          "median": 7664.5,
+          "min": 243.0,
+          "stdev": 4774.908497087201,
+          "values": [
+            3660,
+            11758,
+            11646,
+            3683,
+            11701,
+            243,
+            3682,
+            11971,
+            3162,
+            11648
+          ]
+        },
+        "time_to_video_element_ms": {
+          "max": 41.0,
+          "mean": 19.5,
+          "median": 17.5,
+          "min": 2.0,
+          "stdev": 11.568635759385518,
+          "values": [
+            2,
+            25,
+            41,
+            12,
+            18,
+            9,
+            17,
+            13,
+            27,
+            31
+          ]
+        },
+        "total_run_ms": {
+          "max": 31714.0,
+          "mean": 26764.6,
+          "median": 27045.5,
+          "min": 19418.0,
+          "stdev": 4879.390995696993,
+          "values": [
+            22881,
+            31616,
+            30520,
+            23571,
+            31589,
+            19418,
+            22551,
+            31714,
+            22904,
+            30882
+          ]
+        },
+        "video_current_time_after_wait_s": {
+          "max": 11.120158,
+          "mean": 11.0582858,
+          "median": 11.0462935,
+          "min": 11.004873,
+          "stdev": 0.03912050608852368,
+          "values": [
+            11.108022,
+            11.026355,
+            11.026833,
+            11.102452,
+            11.061313,
+            11.004873,
+            11.120158,
+            11.050646,
+            11.040265,
+            11.041941
+          ]
+        }
+      },
+      "notes": [
+        "installed addon: uBlock0@raymondhill.net",
+        "installed addon: uBlock0@raymondhill.net",
+        "installed addon: uBlock0@raymondhill.net",
+        "installed addon: uBlock0@raymondhill.net",
+        "installed addon: uBlock0@raymondhill.net",
+        "installed addon: uBlock0@raymondhill.net",
+        "installed addon: uBlock0@raymondhill.net",
+        "installed addon: uBlock0@raymondhill.net",
+        "installed addon: uBlock0@raymondhill.net",
+        "installed addon: uBlock0@raymondhill.net"
+      ],
+      "runs": 10
+    }
+  },
+  "report_path": "reports/20260522_060003_utc_rickroll_youtube.md",
+  "run_dir": "runs/20260522_060003_utc",
+  "settings": {
+    "headless": false,
+    "navigation_timeout_s": 45,
+    "runs_per_profile": 10,
+    "settle_seconds": 10,
+    "ubo_xpi_supplied": true,
+    "video_timeout_s": 20
+  },
+  "target": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "target_name": "rickroll_youtube"
+}
