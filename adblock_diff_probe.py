@@ -27,6 +27,7 @@ import platform
 import random
 import re
 import shutil
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import statistics
 import subprocess
 import sys
@@ -62,6 +63,10 @@ ANTI_ADBLOCK_PATTERNS = [
     r"blocked by client",
 ]
 
+
+def target_slug(url: str) -> str:
+    safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", url)
+    return safe.strip("_")[:80]
 
 @dataclass
 class ProbeResult:
@@ -166,7 +171,7 @@ def run_cmd(cmd: list[str]) -> str | None:
         return None
 
 
-def environment_info() -> dict[str, Any]:
+def environment_info(target_url: str) -> dict[str, Any]:
     return {
         "python": sys.version.split()[0],
         "platform": platform.platform(),
@@ -174,7 +179,7 @@ def environment_info() -> dict[str, Any]:
         "machine": platform.machine(),
         "firefox_version": run_cmd(["firefox", "--version"]),
         "selenium_version": webdriver.__version__,
-        "target_url": TARGET_URL,
+        "target_url": target_url,
         "viewport": f"{VIEWPORT_WIDTH}x{VIEWPORT_HEIGHT}",
     }
 
@@ -319,6 +324,7 @@ def run_probe(
     video_timeout_s: int,
     settle_seconds: int,
     headless: bool,
+    target_url: str,
 ) -> ProbeResult:
     profile_dir = mkdir(run_dir / "profiles" / f"{profile}_{run_index}")
     output_dir = mkdir(run_dir / profile)
@@ -346,7 +352,7 @@ def run_probe(
             pass
 
         try:
-            driver.get(TARGET_URL)
+            driver.get(target_url)
         except TimeoutException:
             notes.append("driver.get timed out; continuing with whatever loaded")
         except WebDriverException as exc:
@@ -373,7 +379,7 @@ def run_probe(
             notes.append(f"screenshot failed: {type(exc).__name__}: {exc}")
 
         result = ProbeResult(
-            url=TARGET_URL,
+            url=target_url,
             profile=profile,
             run_index=run_index,
             started_at_utc=started_wall,
@@ -474,6 +480,7 @@ def write_report(
     results_by_profile: dict[str, list[ProbeResult]],
     env: dict[str, Any],
     args: argparse.Namespace,
+    target_url: str,
 ) -> None:
     summaries = {profile: summarize_profile(results) for profile, results in results_by_profile.items()}
     no_blocker = summaries.get("no_blocker", {"metrics": {}})
@@ -496,7 +503,7 @@ def write_report(
         reasons.append("visible anti-adblock text detected")
 
     summary_json = {
-        "target": TARGET_URL,
+        "target": target_url,
         "target_name": TARGET_NAME,
         "run_dir": str(run_dir),
         "report_path": str(report_path),
@@ -523,7 +530,7 @@ def write_report(
     lines: list[str] = []
     lines.append(f"# Adblock Diff Probe: {TARGET_NAME}")
     lines.append("")
-    lines.append(f"Target: `{TARGET_URL}`")
+    lines.append(f"Target: `{target_url}`")
     lines.append(f"Run directory: `{run_dir}`")
     lines.append(f"Summary JSON: `{summary_path}`")
     lines.append("")
@@ -641,6 +648,8 @@ def write_report(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Measure webpage behavior with and without uBO using Firefox/Selenium.")
     parser.add_argument("--runs", type=int, default=3, help="Runs per profile. Default: 3")
+    parser.add_argument("--url", default=TARGET_URL, help="Target URL to test. Default: Rickroll YouTube URL")
+    parser.add_argument("--workers", type=int, default=1, help="Parallel browser instances. Default: 1. Use >1 for faster exploratory runs, but sequential is cleaner for publishable timing.")
     parser.add_argument("--ubo-xpi", type=Path, default=None, help="Path to uBlock Origin Firefox .xpi")
     parser.add_argument("--out", type=Path, default=Path("."), help="Output root. Default: current directory")
     parser.add_argument("--navigation-timeout-s", type=int, default=45)
@@ -653,13 +662,16 @@ def main() -> None:
     if args.runs < 1:
         raise SystemExit("--runs must be >= 1")
 
+    if args.workers < 1:
+        raise SystemExit("--workers must be >= 1")
+
     if args.ubo_xpi is not None and not args.ubo_xpi.exists():
         raise SystemExit(f"uBO XPI does not exist: {args.ubo_xpi}")
 
     ts = now_slug()
     run_dir = mkdir(args.out / "runs" / ts)
     report_dir = mkdir(args.out / "reports")
-    report_path = report_dir / f"{ts}_{TARGET_NAME}.md"
+    report_path = report_dir / f"{ts}_{target_slug(args.url)}.md"
     summary_path = run_dir / "summary.json"
 
     plan: list[tuple[str, Path | None, int]] = []
@@ -670,12 +682,13 @@ def main() -> None:
 
     random.shuffle(plan)
 
-    env = environment_info()
+    env = environment_info(args.url)
     results_by_profile: dict[str, list[ProbeResult]] = defaultdict(list)
 
-    for profile, xpi, run_index in plan:
+    def run_one(item: tuple[str, Path | None, int]) -> ProbeResult:
+        profile, xpi, run_index = item
         print(f"[*] Running {profile} #{run_index} ...")
-        result = run_probe(
+        return run_probe(
             profile=profile,
             run_index=run_index,
             run_dir=run_dir,
@@ -684,14 +697,33 @@ def main() -> None:
             video_timeout_s=args.video_timeout_s,
             settle_seconds=args.settle_seconds,
             headless=args.headless,
+            target_url=args.url,
         )
-        results_by_profile[profile].append(result)
-        print(
-            f"    playing={fmt_ms(result.time_to_playing_ms)} "
-            f"video_element={fmt_ms(result.time_to_video_element_ms)} "
-            f"video_t={fmt_s(result.video_current_time_after_wait_s)} "
-            f"anti_text={result.anti_adblock_text_detected}"
-        )
+
+    if args.workers == 1:
+        for item in plan:
+            result = run_one(item)
+            results_by_profile[result.profile].append(result)
+            print(
+                f"    playing={fmt_ms(result.time_to_playing_ms)} "
+                f"video_element={fmt_ms(result.time_to_video_element_ms)} "
+                f"video_t={fmt_s(result.video_current_time_after_wait_s)} "
+                f"anti_text={result.anti_adblock_text_detected}"
+            )
+    else:
+        print(f"[*] Parallel mode: {args.workers} workers. Good for exploration; sequential is cleaner for final evidence.")
+        with ThreadPoolExecutor(max_workers=args.workers) as executor:
+            futures = [executor.submit(run_one, item) for item in plan]
+            for future in as_completed(futures):
+                result = future.result()
+                results_by_profile[result.profile].append(result)
+                print(
+                    f"    done {result.profile} #{result.run_index}: "
+                    f"playing={fmt_ms(result.time_to_playing_ms)} "
+                    f"video_element={fmt_ms(result.time_to_video_element_ms)} "
+                    f"video_t={fmt_s(result.video_current_time_after_wait_s)} "
+                    f"anti_text={result.anti_adblock_text_detected}"
+                )
 
     write_report(
         run_dir=run_dir,
@@ -700,6 +732,7 @@ def main() -> None:
         results_by_profile=results_by_profile,
         env=env,
         args=args,
+        target_url=args.url,
     )
 
     if not args.keep_profiles:
@@ -714,4 +747,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
